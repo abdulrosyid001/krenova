@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app/backend
+      - ./model:/app/model
+    environment:
+      - DD_MODEL_PATH=/app/model/best_model.keras
