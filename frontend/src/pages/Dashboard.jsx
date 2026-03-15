@@ -5,58 +5,97 @@ import MetricsPanel from '../components/MetricsPanel';
 import ControlPanel from '../components/ControlPanel';
 import { predictFrame } from '../services/api';
 
+// ==========================================
+// ALARM SOUND — Web Audio API
+// Tidak memerlukan file audio eksternal.
+// Generate bunyi beep berulang langsung dari browser.
+// ==========================================
+function createAlarmSound(audioCtx) {
+  const oscillator = audioCtx.createOscillator();
+  const gainNode   = audioCtx.createGain();
+
+  oscillator.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+
+  oscillator.type      = 'square';
+  oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+  gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+
+  // Efek beep berulang: volume naik-turun setiap 0.5 detik
+  const now = audioCtx.currentTime;
+  for (let i = 0; i < 60; i++) {
+    gainNode.gain.setValueAtTime(0.3, now + i * 0.5);
+    gainNode.gain.setValueAtTime(0.0, now + i * 0.5 + 0.25);
+  }
+
+  oscillator.start(now);
+  oscillator.stop(now + 60);
+
+  return oscillator;
+}
+
 export default function Dashboard() {
-  const [running, setRunning] = useState(false);
-  const [metrics, setMetrics] = useState({ ear: '--', mar: '--', perclos: '--', confidence: '--' });
-  const [drowsy, setDrowsy] = useState(false);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [running, setRunning]                   = useState(false);
+  const [metrics, setMetrics]                   = useState({ ear: '--', mar: '--', perclos: '--', confidence: '--' });
+  const [drowsy, setDrowsy]                     = useState(false);
+  const [error, setError]                       = useState('');
+  const [busy, setBusy]                         = useState(false);
 
   // ==========================================
   // ALARM STATE
   // ==========================================
-  const [triggerAlarm, setTriggerAlarm] = useState(false);
+  const [triggerAlarm, setTriggerAlarm]         = useState(false);
   const [drowsyFrameCounter, setDrowsyFrameCounter] = useState(0);
-  const audioRef = useRef(null);
+  const audioCtxRef   = useRef(null);
+  const oscillatorRef = useRef(null);
 
-  // Inisialisasi Audio saat komponen mount.
-  // File alarm.mp3 diletakkan di folder /public.
-  // loop=true agar alarm terus berbunyi selama kondisi mengantuk berlanjut.
-  useEffect(() => {
-    audioRef.current = new Audio('/alarm.mp3');
-    audioRef.current.loop = true;
-
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, []);
+  // Buat AudioContext saat pertama kali user klik Start.
+  // AudioContext harus dibuat setelah ada interaksi pengguna
+  // agar tidak diblokir browser (autoplay policy).
+  const initAudioContext = () => {
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+  };
 
   // Bunyikan atau hentikan alarm berdasarkan triggerAlarm
   useEffect(() => {
-    if (!audioRef.current) return;
-
     if (triggerAlarm) {
-      audioRef.current.play().catch((err) => {
-        // Browser memblokir autoplay sebelum ada interaksi pengguna.
-        // Hal ini tidak akan terjadi karena user sudah klik tombol Start terlebih dahulu.
-        console.warn('Alarm audio blocked by browser:', err);
-      });
+      // Hentikan oscillator sebelumnya jika masih berjalan
+      if (oscillatorRef.current) {
+        try { oscillatorRef.current.stop(); } catch (_) {}
+        oscillatorRef.current = null;
+      }
+      if (audioCtxRef.current) {
+        oscillatorRef.current = createAlarmSound(audioCtxRef.current);
+      }
     } else {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+      if (oscillatorRef.current) {
+        try { oscillatorRef.current.stop(); } catch (_) {}
+        oscillatorRef.current = null;
+      }
     }
   }, [triggerAlarm]);
 
-  // Hentikan alarm saat deteksi dihentikan
+  // Hentikan alarm dan reset counter saat deteksi dihentikan
   useEffect(() => {
     if (!running) {
       setTriggerAlarm(false);
       setDrowsyFrameCounter(0);
     }
   }, [running]);
+
+  // Cleanup AudioContext saat komponen unmount
+  useEffect(() => {
+    return () => {
+      if (oscillatorRef.current) {
+        try { oscillatorRef.current.stop(); } catch (_) {}
+      }
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close();
+      }
+    };
+  }, []);
 
   const handleFrame = useCallback(async (imageData) => {
     if (!running || busy) return;
@@ -79,6 +118,15 @@ export default function Dashboard() {
     }
     setBusy(false);
   }, [running, busy]);
+
+  const handleStart = () => {
+    initAudioContext();   // inisialisasi AudioContext setelah klik — aman dari autoplay policy
+    setRunning(true);
+  };
+
+  const handleStop = () => {
+    setRunning(false);
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-3 md:p-6">
@@ -108,7 +156,7 @@ export default function Dashboard() {
           <div className="space-y-3">
             <StatusIndicator drowsy={drowsy} />
             <MetricsPanel metrics={metrics} />
-            <ControlPanel running={running} onStart={() => setRunning(true)} onStop={() => setRunning(false)} />
+            <ControlPanel running={running} onStart={handleStart} onStop={handleStop} />
           </div>
         </div>
 
