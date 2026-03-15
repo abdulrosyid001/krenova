@@ -2,8 +2,17 @@ import { useEffect, useRef } from "react";
 import { healthCheck } from "../services/api";
 
 export default function CameraView({ onFrame, running, setError }) {
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+  const videoRef   = useRef(null);
+  const canvasRef  = useRef(null);
+
+  // Simpan onFrame dan running ke ref agar captureLoop selalu
+  // membaca nilai terbaru tanpa perlu masuk ke dependency useEffect.
+  // Ini mencegah useEffect restart setiap kali onFrame atau running berubah.
+  const onFrameRef = useRef(onFrame);
+  const runningRef = useRef(running);
+
+  useEffect(() => { onFrameRef.current = onFrame; }, [onFrame]);
+  useEffect(() => { runningRef.current = running; }, [running]);
 
   useEffect(() => {
 
@@ -40,12 +49,12 @@ export default function CameraView({ onFrame, running, setError }) {
     startCamera();
 
     const captureLoop = async () => {
-      if (!running || !videoRef.current) {
+      if (!runningRef.current || !videoRef.current) {
         timer = setTimeout(captureLoop, 200);
         return;
       }
 
-      const video = videoRef.current;
+      const video  = videoRef.current;
       const canvas = canvasRef.current;
 
       if (!canvas || !video) {
@@ -53,7 +62,7 @@ export default function CameraView({ onFrame, running, setError }) {
         return;
       }
 
-      canvas.width = video.videoWidth;
+      canvas.width  = video.videoWidth;
       canvas.height = video.videoHeight;
 
       const ctx = canvas.getContext("2d");
@@ -62,7 +71,7 @@ export default function CameraView({ onFrame, running, setError }) {
       const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
 
       // kirim frame ke backend
-      onFrame(dataUrl);
+      onFrameRef.current(dataUrl);
 
       timer = setTimeout(captureLoop, 200);
     };
@@ -76,7 +85,7 @@ export default function CameraView({ onFrame, running, setError }) {
         stream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [onFrame, running, setError]);
+  }, [setError]);
 
   return (
     <div className="bg-slate-800 rounded-2xl border border-slate-700 p-2">

@@ -35,19 +35,22 @@ function createAlarmSound(audioCtx) {
 }
 
 export default function Dashboard() {
-  const [running, setRunning]                   = useState(false);
-  const [metrics, setMetrics]                   = useState({ ear: '--', mar: '--', perclos: '--', confidence: '--' });
-  const [drowsy, setDrowsy]                     = useState(false);
-  const [error, setError]                       = useState('');
-  const [busy, setBusy]                         = useState(false);
+  const [running, setRunning]                       = useState(false);
+  const [metrics, setMetrics]                       = useState({ ear: '--', mar: '--', perclos: '--', confidence: '--' });
+  const [drowsy, setDrowsy]                         = useState(false);
+  const [error, setError]                           = useState('');
 
   // ==========================================
   // ALARM STATE
   // ==========================================
-  const [triggerAlarm, setTriggerAlarm]         = useState(false);
+  const [triggerAlarm, setTriggerAlarm]             = useState(false);
   const [drowsyFrameCounter, setDrowsyFrameCounter] = useState(0);
   const audioCtxRef   = useRef(null);
   const oscillatorRef = useRef(null);
+
+  // Gunakan ref untuk busy agar tidak masuk dependency useCallback
+  // sehingga handleFrame tidak dibuat ulang setiap render
+  const busyRef = useRef(false);
 
   // Buat AudioContext saat pertama kali user klik Start.
   // AudioContext harus dibuat setelah ada interaksi pengguna
@@ -98,8 +101,8 @@ export default function Dashboard() {
   }, []);
 
   const handleFrame = useCallback(async (imageData) => {
-    if (!running || busy) return;
-    setBusy(true);
+    if (!running || busyRef.current) return;
+    busyRef.current = true;
     try {
       const response = await predictFrame(imageData);
       setMetrics({
@@ -116,8 +119,8 @@ export default function Dashboard() {
     } catch (err) {
       setError('Failed to infer frame. Please ensure backend is running.');
     }
-    setBusy(false);
-  }, [running, busy]);
+    busyRef.current = false;
+  }, [running]);
 
   const handleStart = () => {
     initAudioContext();   // inisialisasi AudioContext setelah klik — aman dari autoplay policy
