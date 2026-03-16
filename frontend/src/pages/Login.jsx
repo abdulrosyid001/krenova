@@ -2,13 +2,18 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
-  const navigate = useNavigate();
+  const navigate                = useNavigate();
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!email || !password) return;
+
+    // Simpan email ke localStorage agar bisa diakses di Dashboard
+    // sebagai identitas user yang dikirim ke backend
+    localStorage.setItem('user_email', email);
+
     navigate('/dashboard');
   };
 

@@ -18,9 +18,12 @@ const api = axios.create({
 // ==========================================
 // PREDICT FRAME
 // ==========================================
-export async function predictFrame(imageBase64) {
+export async function predictFrame(imageBase64, userEmail = "anonymous") {
   try {
-    const body = { image: imageBase64 };
+    const body = {
+      image:      imageBase64,
+      user_email: userEmail,
+    };
 
     const response = await api.post("/predict", body);
 

@@ -40,6 +40,9 @@ export default function Dashboard() {
   const [drowsy, setDrowsy]                         = useState(false);
   const [error, setError]                           = useState('');
 
+  // Ambil email user dari localStorage yang disimpan saat login
+  const [userEmail, setUserEmail]                   = useState('anonymous');
+
   // ==========================================
   // ALARM STATE
   // ==========================================
@@ -51,6 +54,14 @@ export default function Dashboard() {
   // Gunakan ref untuk busy agar tidak masuk dependency useCallback
   // sehingga handleFrame tidak dibuat ulang setiap render
   const busyRef = useRef(false);
+
+  // Ambil email user dari localStorage saat komponen mount
+  useEffect(() => {
+    const storedEmail = localStorage.getItem('user_email');
+    if (storedEmail) {
+      setUserEmail(storedEmail);
+    }
+  }, []);
 
   // Buat AudioContext saat pertama kali user klik Start.
   // AudioContext harus dibuat setelah ada interaksi pengguna
@@ -104,7 +115,7 @@ export default function Dashboard() {
     if (!running || busyRef.current) return;
     busyRef.current = true;
     try {
-      const response = await predictFrame(imageData);
+      const response = await predictFrame(imageData, userEmail);
       setMetrics({
         ear:        response.ear.toFixed(3),
         mar:        response.mar.toFixed(3),
@@ -120,7 +131,7 @@ export default function Dashboard() {
       setError('Failed to infer frame. Please ensure backend is running.');
     }
     busyRef.current = false;
-  }, [running]);
+  }, [running, userEmail]);
 
   const handleStart = () => {
     initAudioContext();   // inisialisasi AudioContext setelah klik — aman dari autoplay policy
@@ -139,7 +150,12 @@ export default function Dashboard() {
             <div className="text-xs uppercase text-slate-400">Driver Drowsiness Monitoring</div>
             <div className="text-xl font-bold">Real-time Dashboard</div>
           </div>
-          <div className="text-right text-slate-300 text-xs">Backend: <span className="text-emerald-400">Online</span></div>
+          <div className="text-right text-slate-300 text-xs">
+            <div>Backend: <span className="text-emerald-400">Online</span></div>
+            {userEmail !== 'anonymous' && (
+              <div className="text-slate-400">{userEmail}</div>
+            )}
+          </div>
         </header>
 
         {error && <div className="p-2 bg-rose-500/20 border border-rose-500 rounded-lg text-rose-200">{error}</div>}
@@ -170,6 +186,7 @@ export default function Dashboard() {
             <li>Frame skipping is active while backend request is in progress.</li>
             <li>If no face is detected, drowsiness detection results are paused.</li>
             <li>Alarm sounds after 3 consecutive drowsy frames are detected.</li>
+            <li>All frames and predictions are saved to Supabase.</li>
           </ul>
         </div>
       </div>
